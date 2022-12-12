@@ -1,0 +1,375 @@
+---
+title: "CaseStudy2"
+author: "Luis Garcia"
+date: "2022-12-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+
+data = read_csv('CaseStudy2-data.csv')
+library(caret)
+library(e1071)
+library(class)
+```
+
+
+# Turn categorical variables to numeric ordinal and plot of the variables with highest correlation
+```{r,echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+data = read_csv('CaseStudy2-data.csv')
+# Switch Attrition to 0 1
+# BusinessTravel to 1 2 3 4 5
+# Department to 1 2 3 4 5 6 7 8
+# EducationField to 1 2 3 4 5 6
+# Gender to 0 1
+# JobRole to 1 2 3 4 5 6
+# MaritalStatus to 1 2 3 4 5 6
+# Over18 to 0 1
+# OverTime to 0 1
+
+
+# Yes 1, No 0
+data$Attrition = ifelse(data$Attrition == 'Yes', 1, 0)
+
+# Non-Travel 0, Travel_Frequently 2, Travel_Rarely 1
+data$BusinessTravel = factor(data$BusinessTravel, labels = c(0,2,1))
+data$BusinessTravel = as.numeric(levels(data$BusinessTravel))[data$BusinessTravel]
+
+# HR 0, Research and Development 2, Sales 1
+data$Department = factor(data$Department, labels = c(0,2,1))
+data$Department = as.numeric(levels(data$Department))[data$Department]
+
+# HR 0, Life Science 1, Marketing 2, Medical 3, Other 4, Technical Degree 5
+data$EducationField = factor(data$EducationField, labels = c(0,1,2,3,4,5))
+data$EducationField = as.numeric(levels(data$EducationField))[data$EducationField]
+
+#Males are 0, Females 1
+data$Gender = factor(data$Gender, labels = c(1,0))
+data$Gender = as.numeric(levels(data$Gender))[data$Gender]
+                     
+#"Healthcare Representative" 0,  "Human Resources" 1,  "Latory Technician"  2, "Manager"  3         
+# "Manufacturing Director"  4, "Research Director"  5, "Research Scientist" 6,  "Sales Executive" 7
+# "Sales Representative" 8
+data$JobRole = factor(data$JobRole, labels = c(0,1,2,3,4,5,6,7,8))
+data$JobRole = as.numeric(levels(data$JobRole))[data$JobRole]
+
+# Divorced 1, Married 2, Single 0
+data$MaritalStatus = factor(data$MaritalStatus, labels = c(1,2,0))
+data$MaritalStatus = as.numeric(levels(data$MaritalStatus))[data$MaritalStatus]
+
+# Yes 1, there is no other value
+data$Over18 = ifelse(data$Over18 == 'Y', 1, 0)
+
+
+# No 0, Yes 1
+data$OverTime = ifelse(data$OverTime == 'Yes', 1, 0)
+
+data = data %>% select(Attrition,everything())
+
+corVal = c()
+for(i in 1:ncol(data)){
+  cor(data$Attrition,data[,i])
+  corVal[i] = cor(data$Attrition,data[,i])
+}
+
+checkCor = corVal
+checkCor = abs(checkCor)
+names(checkCor) = c(1:36)
+checkCor2 = as.data.frame(checkCor) %>% arrange(checkCor)
+
+
+checkCor3 = checkCor2[1:32,]
+checkCor3 = as.data.frame(checkCor3)
+checkCor3 = checkCor2 %>% filter(is.na(checkCor) == FALSE & checkCor != 1)
+
+
+
+tail(checkCor3,6) %>% ggplot(aes(y = reorder(names(data[,c(20,34,16,30,15,24)]),
+                                             tail(checkCor3$checkCor,6)),
+                                 
+                                 x = unname(checkCor), fill = reorder(names(data[,c(20,34,16,30,15,24)]), 
+                                                                      tail(checkCor3$checkCor,6)))) + geom_col() +
+  scale_fill_discrete(name = 'Variable') + ylab('Variable') + xlab('Correlation with Attrition') +
+  geom_text(aes(label = round(unname(checkCor),3)), position = position_stack(.75), size=3.5)
+```
+
+#### The correlations may be misleading since we coerced categorical variables to be numeric regardless of it made sense
+
+
+# Conduct pearson correlation test variable is continuos, spearman's if variable is ordinal, and a chi-square test if it's categorical
+```{r, message=FALSE, warning=FALSE}
+cor.test(data$Attrition, data$Age) # Age 9.658e-06
+chisq.test(data$Attrition, data$BusinessTravel) # BusinessTravel 0.04993
+cor.test(data$Attrition, data$DailyRate) # Daily rate 0.3194
+chisq.test(data$Attrition, data$Department) # Department 0.009424
+cor.test(data$Attrition, data$DistanceFromHome) # DistanceFromHome .01013
+cor.test(data$Attrition, data$Education, method = 'spearman') # Education 0.1328
+chisq.test(data$Attrition, data$EducationField) # 0.2682
+#chisq.test(data$Attrition, data$EmployeeCount) # NoVariation, null?
+chisq.test(data$Attrition, data$EmployeeNumber) # EmployeeNumber 0.4841
+cor.test(data$Attrition, data$EnvironmentSatisfaction, method = 'spearman') # EnvironmentSatisfaction 0.03838
+chisq.test(data$Attrition, data$Gender) # Gender 0.5151
+cor.test(data$Attrition, data$HourlyRate) # HourlyRate 0.2815
+cor.test(data$Attrition, data$JobInvolvement, method = 'spearman') # JobInvolvement 6.587e-07
+cor.test(data$Attrition, data$JobLevel, method = 'spearman') # JobLevel 1.912e-08
+chisq.test(data$Attrition, data$JobRole) # JobRole 3.647e-10
+cor.test(data$Attrition, data$JobSatisfaction, method = 'spearman') # JobSatisfaction 0.001153
+chisq.test(data$Attrition, data$MaritalStatus) # MaritalStatus 3.379e-08
+cor.test(data$Attrition, data$MonthlyIncome) # MonthlyIncome 4.422e-06
+cor.test(data$Attrition, data$MonthlyRate) # MonthlyRate 0.2027
+cor.test(data$Attrition, data$NumCompaniesWorked) # NumCompanies worked 0.07204
+#chisq.test(data$Attrition, data$Over18) # NoVariation null?
+chisq.test(data$Attrition,data$OverTime) # OVerTime 2.333e-15
+cor.test(data$Attrition, data$PercentSalaryHike) # PercentSalaryHike 0.6516
+cor.test(data$Attrition, data$PerformanceRating, method = 'spearman') # PerformanceRating 0.6515
+cor.test(data$Attrition, data$RelationshipSatisfaction, method = 'spearman') # RelationshipSatisfaction 0.298
+cor.test(data$Attrition, data$StandardHours) # NoVariation null?
+cor.test(data$Attrition, data$StockOptionLevel, method = 'spearman') # StockOptionLevel 2.18e-09
+cor.test(data$Attrition, data$TotalWorkingYears) # TotalWorkingYears 7.059e-07
+cor.test(data$Attrition, data$TrainingTimesLastYear) # TrainingTimesLastYear 0.06441
+cor.test(data$Attrition, data$WorkLifeBalance, method = 'spearman') # WorkLifeBalance 0.03434
+cor.test(data$Attrition, data$YearsAtCompany) # YearsAtCompany 0.00014
+cor.test(data$Attrition, data$YearsInCurrentRole) # YearsInCurrentRole 3.665e-06
+cor.test(data$Attrition, data$YearsSinceLastPromotion) # YearsSinceLastPromotion 0.8928
+cor.test(data$Attrition, data$YearsWithCurrManager) # YearsWithCurrentManagaer 1.381e-05
+
+
+
+```
+#### Three lowest p-values belonged to OverTime, JobRole, and StockOptionLevel
+
+# Show that the variables with lowest p-value had an effect on Attrtion. 
+```{r,echo = FALSE}
+data %>% ggplot(aes( x = OverTime, fill = as.factor(Attrition))) + geom_bar(position = 'fill')
+data %>% ggplot(aes( x = JobRole, fill = as.factor(Attrition))) + geom_bar(position = 'fill')
+data %>% ggplot(aes ( x = StockOptionLevel, fill = as.factor(Attrition))) + geom_bar(position = 'fill')
+```
+
+#### OverTime, JobRole, and StockOptionLevel all show changes in attrition based on their levels
+
+# Naive Bayes model for Attrition using all variables as explanatory variables but keeping categorical variables categorical
+```{r,echo = FALSE}
+attrition_dataset = read_csv('CaseStudy2-data.csv')
+attrition_dataset = attrition_dataset %>% select(Attrition,everything())
+attModel_NB = attrition_dataset
+MeanAcc_NB <- c()
+MeanSens_NB <- c()
+MeanSpec_NB<- c()
+
+set.seed(1)
+for(i in 1:100){
+  trainIndice_NB = sample(seq(1:length(attModel_NB$Attrition)),round(.7*length(attModel_NB$Attrition)))
+  trainNB = attModel_NB[trainIndice_NB,]
+  testNB = attModel_NB[-trainIndice_NB,]
+  
+  naiveBayes(trainNB[,-1], trainNB$Attrition)
+  predict(naiveBayes(trainNB[,-1], trainNB$Attrition), testNB[,-1])
+  CM  = confusionMatrix(table(predict(naiveBayes(trainNB[,-1], trainNB$Attrition), testNB[,-1]),
+                              testNB$Attrition))
+  MeanAcc_NB <- append(MeanAcc_NB, CM$overall[1])
+  MeanSens_NB <- append(MeanSens_NB, CM$byClass[1])
+  MeanSpec_NB <- append(MeanSpec_NB, CM$byClass[2])
+  
+}
+confusionMatrix(table(predict(naiveBayes(trainNB[,-1], trainNB$Attrition), testNB[,-1]),
+                              testNB$Attrition))
+
+```
+#### Naive Bayes model with every variable is getting attrition correct at incredible rates. The specificity is above 50% but not quite 60%.
+
+# Loop Knn model to find the best K for attrition using all variables as explanatory variables but changing categorical variables to be numeric. Then use this k to get accuracies
+```{r,echo = FALSE}
+iterations = 100
+numks = 30
+masterAcc_KNN = matrix(nrow = iterations, ncol = numks)
+masterSens_KNN  = matrix(nrow = iterations, ncol = numks)
+masterSpec_KNN  = matrix(nrow = iterations, ncol = numks)
+
+set.seed(1)
+attModel_KNN = data
+for(j in 1:iterations)
+{
+  trainIndice_knn = sample(seq(1:length(attModel_KNN$Attrition)),round(.7*length(attModel_KNN$Attrition)))
+  train_Att = attModel_KNN[trainIndice_knn,]
+  test_Att = attModel_KNN[-trainIndice_knn,]
+  
+  for(i in 1:numks)
+  {
+    classifications = knn(train_Att[,-1],test_Att[,-1], train_Att$Attrition,k = i)
+    CM = confusionMatrix(table(classifications,test_Att$Attrition))
+    masterAcc_KNN [j,i] = CM$overall[1]
+    masterSens_KNN [j,i] = CM$byClass[1]
+    masterSpec_KNN [j,i] = CM$byClass[2]
+  }
+}
+MeanAcc_KNN  = colMeans(masterAcc_KNN )
+MeanSens_KNN  = colMeans(masterSens_KNN )
+MeanSpec_KNN  = colMeans(masterSpec_KNN )
+data.frame(k = 1:numks, MeanAccuracy = MeanAcc_KNN, MeanSensitivity_KNN = MeanSens_KNN, MeanSpecificity = MeanSpec_KNN)
+classifications = knn(train_Att[,-1],test_Att[,-1], train_Att$Attrition,k = 2)
+CM = confusionMatrix(table(classifications,test_Att$Attrition))
+```
+
+#### The KNN model did not do as well but it is included to show difference. The specificity is drastically low because of the nature of the dataset. Even using the best k, 2, the specificity is still below 20%
+
+# Linear Regression model for Attrition using all variables as explanatory variables but keeping categorical variables categorical
+```{r}
+
+   
+# Linear Regression Model for Attrition using all variables as explanatory variables but changing categorical variables to be numeric
+```{r,echo = FALSE, message=FALSE, warning=FALSE}
+
+attModel_lm = data
+set.seed(1)
+trainIndice_lm = sample(seq(1:length(attModel_lm$Attrition)),round(.7*length(attModel_lm$Attrition)))
+train_Att_lm = attModel_lm[trainIndice_lm,]
+test_Att_lm = attModel_lm[-trainIndice_lm,]
+
+attModel_lm_training_model = lm(Attrition ~., data = train_Att_lm)
+predictions_lm  = predict(attModel_lm_training_model, test_Att_lm) 
+
+predictions_lm_changed = predictions_lm
+predictions_lm_changed = ifelse(abs(predictions_lm_changed) > .5, 1, 0)
+
+CM_lm = confusionMatrix(table(predictions_lm_changed,test_Att_lm$Attrition))
+CM_lm
+
+```
+#### The linear regression model did surprisingly better than I had expected given that the variable was not continuos as it should be. Expected accuracies of below 50%
+
+# Naive Bayes model for Monthly Income using all variables as explanatory variables but keeping categorical variables categorical
+```{r,echo = FALSE, message=FALSE, warning=FALSE}
+salaryModel_NB = read_csv('CaseStudy2-data.csv')
+salaryModel_NB = salaryModel_NB %>% select(MonthlyIncome,everything())
+
+set.seed(1)
+trainIndice_NB = sample(seq(1:length(salaryModel_NB$MonthlyIncome)),round(.7*length(salaryModel_NB$MonthlyIncome)))
+trainNB = salaryModel_NB[trainIndice_NB,]
+testNB = salaryModel_NB[-trainIndice_NB,]
+
+sqrt(mean((as.numeric(predict(naiveBayes(trainNB[,-1], trainNB$MonthlyIncome), testNB[,-1])) -  as.numeric(testNB$MonthlyIncome))^2))
+```
+#### Naive bayes for monthly income did not do nearly as well as it did for attrition
+
+
+# Knn model for MonthlyIncome using all variables as explanatory variables but changing categorical variables to be numeric
+```{r,echo = FALSE, message=FALSE, warning=FALSE}
+
+salaryModel_KNN = read_csv('CaseStudy2-data.csv')
+salaryModel_KNN = salaryModel_KNN %>% select(MonthlyIncome,everything())
+
+iterations = 100
+numks = 30
+RMSE_KNN = matrix(nrow = iterations, ncol = numks)
+
+# Yes 1, No 0
+salaryModel_KNN$Attrition = ifelse(salaryModel_KNN$Attrition == 'Yes', 1, 0)
+
+# Non-Travel 0, Travel_Frequently 2, Travel_Rarely 1
+salaryModel_KNN$BusinessTravel = factor(salaryModel_KNN$BusinessTravel, labels = c(0,2,1))
+salaryModel_KNN$BusinessTravel = as.numeric(levels(salaryModel_KNN$BusinessTravel))[salaryModel_KNN$BusinessTravel]
+
+# HR 0, Research and Development 2, Sales 1
+salaryModel_KNN$Department = factor(salaryModel_KNN$Department, labels = c(0,2,1))
+salaryModel_KNN$Department = as.numeric(levels(salaryModel_KNN$Department))[salaryModel_KNN$Department]
+
+# HR 0, Life Science 1, Marketing 2, Medical 3, Other 4, Technical Degree 5
+salaryModel_KNN$EducationField = factor(salaryModel_KNN$EducationField, labels = c(0,1,2,3,4,5))
+salaryModel_KNN$EducationField = as.numeric(levels(salaryModel_KNN$EducationField))[salaryModel_KNN$EducationField]
+
+#Males are 0, Females 1
+salaryModel_KNN$Gender = factor(salaryModel_KNN$Gender, labels = c(1,0))
+salaryModel_KNN$Gender = as.numeric(levels(salaryModel_KNN$Gender))[salaryModel_KNN$Gender]
+
+#"Healthcare Representative" 0,  "Human Resources" 1,  "Latory Technician"  2, "Manager"  3         
+# "Manufacturing Director"  4, "Research Director"  5, "Research Scientist" 6,  "Sales Executive" 7
+# "Sales Representative" 8
+salaryModel_KNN$JobRole = factor(salaryModel_KNN$JobRole, labels = c(0,1,2,3,4,5,6,7,8))
+salaryModel_KNN$JobRole = as.numeric(levels(salaryModel_KNN$JobRole))[salaryModel_KNN$JobRole]
+
+# Divorced 1, Married 2, Single 0
+salaryModel_KNN$MaritalStatus = factor(salaryModel_KNN$MaritalStatus, labels = c(1,2,0))
+salaryModel_KNN$MaritalStatus = as.numeric(levels(salaryModel_KNN$MaritalStatus))[salaryModel_KNN$MaritalStatus]
+
+# Yes 1, there is no other value
+salaryModel_KNN$Over18 = ifelse(salaryModel_KNN$Over18 == 'Y', 1, 0)
+
+
+# No 0, Yes 1
+salaryModel_KNN$OverTime = ifelse(salaryModel_KNN$OverTime == 'Yes', 1, 0)
+
+set.seed(1)
+  for(j in 1:iterations)
+  {
+    trainIndice_knn = sample(seq(1:length(salaryModel_KNN$Attrition)),round(.7*length(salaryModel_KNN$Attrition)))
+    train_Att = salaryModel_KNN[trainIndice_knn,]
+    test_Att = salaryModel_KNN[-trainIndice_knn,]
+    
+    for(i in 1:numks)
+    {
+      predictions =  knn(train_Att[,-1],test_Att[,-1], train_Att$MonthlyIncome,k = i)
+      predictions = as.numeric(levels(predictions))[predictions]
+      RMSE_KNN[j,i] = sqrt(mean((predictions - test_Att$Attrition)^2))
+      
+      
+    }
+  }
+RMSE_per_k = colMeans(RMSE_KNN )
+RMSE_per_k[which.min(RMSE_per_k)]
+
+```
+#### Had to make the categorical variables numeric again since knn can't read factors/strings. Surprisingly, the knn model for MonthlyIncome performed similar to the Naive Bayes model.
+
+# Linear Regression model for MonthlyIncome using all variables as explanatory variables but changing categorical variables to be numeric
+```{r,echo = FALSE, message=FALSE, warning=FALSE}
+
+salaryModel_lm = read_csv('CaseStudy2-data.csv')
+salaryModel_lm = salaryModel_lm %>% select(MonthlyIncome,everything())
+
+
+linear_or_not = read.csv('CaseStudy2-data.csv', stringsAsFactors = TRUE)
+
+# The categorical variables were 
+# Attrition to 0 1
+# BusinessTravel to 1 2 3 4 5
+# Department to 1 2 3 4 5 6 7 8
+# EducationField to 1 2 3 4 5 6
+# Gender to 0 1
+# JobRole to 1 2 3 4 5 6
+# MaritalStatus to 1 2 3 4 5 6
+# Over18 to 0 1
+# OverTime to 0 
+
+### TotalWorkingYears YearsAtCompany JobLevel only continuos variables used for linear regression as they're the only ones
+### that are linearly related to MonthlyIncome
+linear_or_not %>% ggplot(aes( x = TotalWorkingYears, y = MonthlyIncome)) + geom_point()
+linear_or_not %>% ggplot(aes( x = YearsAtCompany, y = MonthlyIncome)) + geom_point()
+linear_or_not %>% ggplot(aes( x = JobLevel, y = MonthlyIncome)) + geom_point()
+
+
+
+salaryModel_lm = read_csv('CaseStudy2-data.csv')
+salaryModel_lm = salaryModel_lm %>% select(MonthlyIncome,everything())
+set.seed(1)
+trainIndice_lm = sample(seq(1:length(salaryModel_lm$Attrition)),round(.7*length(salaryModel_lm$Attrition)))
+train_salary_lm = attModel_lm[trainIndice_lm,]
+test_salary_lm = attModel_lm[-trainIndice_lm,]
+
+attModel_lm_training_model = lm(MonthlyIncome ~ TotalWorkingYears + YearsAtCompany + JobLevel, data = train_salary_lm)
+predictions_lm  = predict(attModel_lm_training_model, test_salary_lm)
+actual = test_salary_lm$MonthlyIncome
+
+RMSE = sqrt(mean((predictions_lm - actual)^2))
+RMSE
+summary(attModel_lm_training_model)
+
+
+```
+#### After taking into account that only linearly related, normal, and equal standard deviation, numeric variables should be included in a linear regression model, most variables were excluded. Only JobLevel, TotalWorkingHours, and YearsAtCompany were used and the model did better than the other two. The RMSE was $1,360, more than 5 times as small than the other models.
+
+# Conclusion
+##### The variables that affect attrition the most are OverTime, JobRole, and StockOptionLevel. Amongst them, there is a clear divide for attrition based on the value of OverTime and so prioritizing this will benefit the most. JobRole was 2nd more influential characteristic and from the analysis it turns out that SalesRepresentatives will leave almost half the time while people with Director in their role seldom do. A  naive bayes model could predict attrition the best while a linear regression model predicted monthly income with the lowest RMSE. Though it was more accurate, the naive bayes model would be expensive, however, given that only 3 variables were used to train the linear regression model, the model is very cost efficient.
+
